@@ -139,14 +139,7 @@
 		   (size size)
 		   (color color))
       edible
-    (sdl:draw-rectangle-* x y size size :color color)))
-
-(defgeneric erase (something))
-(defmethod erase ((edible edible))
-  (with-accessors ((x x-loc)
-		   (y y-loc))
-      edible
-    (sdl:draw-pixel-* x y :color *bg-color*)))
+    (sdl:draw-box-* x y size size :color color)))
 
 (defgeneric nom-nom (eater food))
 (defmethod nom-nom ((worm worm) (food food))
