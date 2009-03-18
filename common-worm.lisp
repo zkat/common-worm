@@ -1,7 +1,7 @@
 (in-package :common-worm)
 
-(defparameter *screen-width* 300)
-(defparameter *screen-height* 300)
+(defparameter *screen-width* 400)
+(defparameter *screen-height* 400)
 (defparameter *obj-color* sdl:*white*)
 (defparameter *bg-color* sdl:*black*)
 
@@ -121,7 +121,7 @@
   ((color
     :initform sdl:*magenta*)
    (penalty
-    :initform 5
+    :initform 15
     :accessor penalty)))
 
 (defun make-random-edible ()
