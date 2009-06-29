@@ -4,6 +4,10 @@
 (defparameter *screen-height* 400)
 (defparameter *obj-color* sdl:*white*)
 (defparameter *bg-color* sdl:*black*)
+(defvar *paused* nil)
+
+(defun draw-text (text x y)
+  (sdl:draw-string-shaded-* text x y *obj-color* *bg-color*))
 
 ;;;
 ;;; Worm class(es)
@@ -39,13 +43,13 @@
 
 (defmethod crashed-p :around ((worm worm))
   (with-accessors ((x head-x)
-		   (y head-y))
+                   (y head-y))
       worm
     (or (call-next-method)
-	(<= x 0)
-	(>= x (1- *screen-width*))
-	(<= y 0)
-	(>= y (1- *screen-height*)))))
+        (<= x 0)
+        (>= x (1- *screen-width*))
+        (<= y 0)
+        (>= y (1- *screen-height*)))))
 
 ;;;
 ;;; Wormy methods
@@ -59,35 +63,38 @@
       (setf (crashed-p worm) t))
     (setf (body worm) (append (body worm) (list (cons x y))))
     (when (> (length (body worm))
-	     (max-length worm))
+             (max-length worm))
       (pop (body worm)))))
 
 (defmethod draw ((worm worm))
-  (loop 
+  (loop
      for (x . y) in (body worm)
      do (sdl:draw-pixel-* x y :color (color worm))))
 
 (defmethod handle-key (key (worm worm))
   (with-accessors ((hd horiz-dir)
-		   (vd vert-dir))
+                   (vd vert-dir))
       worm
     (case key
+      (:sdl-key-p
+       (setf *paused*
+             (not *paused*)))
       (:sdl-key-up
        (unless (= vd 1)
-	 (setf hd 0)
-	 (setf vd -1)))
+         (setf hd 0)
+         (setf vd -1)))
       (:sdl-key-down
        (unless (= vd -1)
-	(setf hd 0)
-	(setf vd 1)))
+        (setf hd 0)
+        (setf vd 1)))
       (:sdl-key-left
        (unless (= hd 1)
-	(setf hd -1)
-	(setf vd 0)))
+        (setf hd -1)
+        (setf vd 0)))
       (:sdl-key-right
        (unless (= hd -1)
-	(setf hd 1)
-	(setf vd 0))))))
+        (setf hd 1)
+        (setf vd 0))))))
 
 ;;;
 ;;; Edibles
@@ -135,23 +142,21 @@
 ;;;
 (defmethod draw ((edible edible))
   (with-accessors ((x x-loc)
-		   (y y-loc)
-		   (size size)
-		   (color color))
+                   (y y-loc)
+                   (size size)
+                   (color color))
       edible
     (sdl:draw-box-* x y size size :color color)))
 
 (defgeneric nom-nom (eater food))
 (defmethod nom-nom ((worm worm) (food food))
-  (incf (max-length worm) (bonus food))
-  (erase food))
+  (incf (max-length worm) (bonus food)))
 (defmethod nom-nom ((worm worm) (blagh poison))
   (decf (max-length worm) (penalty blagh))
   (setf (body worm)
-	(subseq (body worm)
-		(penalty blagh)
-		(length (body worm))))
-  (erase blagh))
+        (subseq (body worm)
+                (penalty blagh)
+                (length (body worm)))))
 
 ;;;
 ;;; Other stuff
@@ -159,69 +164,71 @@
 (defgeneric collided-p (obj1 obj2))
 (defmethod collided-p ((worm worm) (edible edible))
   (with-accessors ((worm-x head-x)
-		   (worm-y head-y))
+                   (worm-y head-y))
       worm
     (with-accessors ((food-x x-loc)
-		     (food-y y-loc)
-		     (size size))
-	edible
+                     (food-y y-loc)
+                     (size size))
+        edible
       (not (or (< worm-x food-x)
-	       (> worm-x (+ food-x size))
-	       (< worm-y food-y)
-	       (> worm-y (+ food-y size)))))))
+               (> worm-x (+ food-x size))
+               (< worm-y food-y)
+               (> worm-y (+ food-y size)))))))
 
 (defun draw-score (score)
-  (let ((string (format nil "Score: ~a" score)))
-    (sdl:draw-string-shaded-* string
-			      (- (/ *screen-width* 2) 25) 
-			      (+ (/ *screen-height* 2)
-				 20)
-			      *obj-color*
-			      *bg-color*)))
+  (draw-text (format nil "Score: ~a" score)
+             (- (/ *screen-width* 2) 25)
+             (+ (/ *screen-height* 2) 20)))
 
 ;;;
 ;;; Main game loop
 ;;;
 (defvar *running* nil)
 (defun main ()
-  (setf *running* t)
+  (setf *running* t
+        *paused*  nil)
   (sdl:with-init (sdl:sdl-init-video)
     (sdl:initialise-default-font)
     (sdl:window *screen-width* *screen-height*
-		:title-caption "sdl stuff"
-		:icon-caption "sdl stuff")
+                :title-caption "sdl stuff"
+                :icon-caption "sdl stuff")
     (setf (sdl:frame-rate) 60)
     (sdl:clear-display *bg-color*)
     (let ((worm (make-instance 'worm))
-	  (food (make-random-edible))
-	  (score 0))
+          (food (make-random-edible))
+          (score 0))
      (sdl:with-events ()
        (:quit-event () (prog1 t
-			 (setf *running* nil)
-			 (format t "~&Final score: ~a" score)))
+                         (setf *running* nil)
+                         (format t "~&Final score: ~a" score)))
        (:key-down-event (:key key)
-			(handle-key key worm))
+                        (handle-key key worm))
        (:idle ()
-	      (sdl:clear-display *bg-color*)
-	      (sdl:draw-string-shaded-* "OMG WURM"
-					(- (/ *screen-width* 2) 25)
-					(/ *screen-height* 2)
-					*obj-color*
-					*bg-color*)
-	      (draw-score score)
-	      (move worm)
-	      (draw worm)
-	      (draw food)
-	      (when (crashed-p worm)
-		(format t "Crashed!")
-		(setf *running* nil))
-	      (when (collided-p worm food)
-		(incf score)
-		(nom-nom worm food)
-		(setf food (make-random-edible)))
-	      (when (>= 0 (max-length worm))
-		(format t "Poisoned to death!")
-		(setf *running* nil))
-	      (sdl:update-display)
-	      (when (not *running*)
-		(sdl:push-quit-event)))))))
+              (sdl:clear-display *bg-color*)
+              (draw-text (if *paused*
+                             "[P] to UNPAUSE"
+                             "[P] to PAUSE")
+                         (- (/ *screen-width* 2)
+                            (if *paused* 50 40))
+                         (- (/ *screen-height* 2) 20))
+              (draw-text "OMG WURM"
+                         (- (/ *screen-width* 2) 25)
+                         (/ *screen-height* 2))
+              (draw-score score)
+              (unless *paused*
+                (move worm))
+              (draw worm)
+              (draw food)
+              (when (crashed-p worm)
+                (format t "Crashed!")
+                (setf *running* nil))
+              (when (collided-p worm food)
+                (incf score)
+                (nom-nom worm food)
+                (setf food (make-random-edible)))
+              (when (>= 0 (max-length worm))
+                (format t "Poisoned to death!")
+                (setf *running* nil))
+              (sdl:update-display)
+              (when (not *running*)
+                (sdl:push-quit-event)))))))

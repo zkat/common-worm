@@ -1,2 +1,3 @@
 (defpackage #:common-worm
-  (:use :cl))
+  (:use :cl)
+  (:export :main))
