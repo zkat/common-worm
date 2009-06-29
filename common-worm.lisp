@@ -1,3 +1,6 @@
+(defpackage #:common-worm
+  (:use :cl)
+  (:export :main))
 (in-package :common-worm)
 
 (defparameter *screen-width* 400)
