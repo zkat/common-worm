@@ -6,6 +6,4 @@
   :licence "MIT"
   :depends-on (lispbuilder-sdl)
   :serial t
-  :components
-  ((:file "packages")
-   (:file "common-worm")))
+  :components ((:file "common-worm")))

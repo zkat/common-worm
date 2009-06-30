@@ -8,6 +8,7 @@
 (defparameter *obj-color* sdl:*white*)
 (defparameter *bg-color* sdl:*black*)
 (defvar *paused* nil)
+(defvar *running* nil)
 
 (defun draw-text (text x y)
   (sdl:draw-string-shaded-* text x y *obj-color* *bg-color*))
@@ -132,15 +133,14 @@
              (- (/ *screen-width* 2) 25)
              (+ (/ *screen-height* 2) 20)))
 
-(defvar *running* nil)
 (defun main ()
   (setf *running* t
         *paused*  nil)
   (sdl:with-init (sdl:sdl-init-video)
     (sdl:initialise-default-font)
     (sdl:window *screen-width* *screen-height*
-                :title-caption "sdl stuff"
-                :icon-caption "sdl stuff")
+                :title-caption "Common Worm"
+                :icon-caption "Common Worm")
     (setf (sdl:frame-rate) 60)
     (sdl:clear-display *bg-color*)
     (let ((worm (make-instance 'worm))
