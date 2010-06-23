@@ -4,7 +4,7 @@
   :maintainer "Kat <kzm@sykosomatic.org>"
   :author "Kat <kzm@sykosomatic.org>"
   :licence "MIT"
-  :depends-on (lispbuilder-sdl)
+  :depends-on (until-it-dies.base)
   :serial t
   :components
   ((:file "packages")
