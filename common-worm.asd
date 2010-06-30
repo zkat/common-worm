@@ -4,8 +4,7 @@
   :maintainer "Kat <kzm@sykosomatic.org>"
   :author "Kat <kzm@sykosomatic.org>"
   :licence "MIT"
-  :depends-on (until-it-dies.base)
+  :depends-on (until-it-dies.base until-it-dies.graphics)
   :serial t
   :components
-  ((:file "packages")
-   (:file "common-worm")))
+  ((:file "common-worm")))

@@ -3,107 +3,103 @@
   (:export :main))
 (in-package :common-worm)
 
-(defparameter *screen-width* 400)
-(defparameter *screen-height* 400)
-(defparameter *obj-color* sdl:*white*)
-(defparameter *bg-color* sdl:*black*)
-(defvar *paused* nil)
-
-(defun draw-text (text x y)
-  (sdl:draw-string-shaded-* text x y *obj-color* *bg-color*))
-
 ;;;
-;;; Worm class(es)
+;;; Entities
 ;;;
+
+;;; Worm
 (defclass worm ()
-  ((head-x :initarg :x :initform (/ *screen-width* 2) :accessor head-x)
-   (head-y :initarg :y :initform (/ *screen-width* 2) :accessor head-y)
+  ((head-x :initarg :x :accessor head-x)
+   (head-y :initarg :y :accessor head-y)
    (max-length :initform 100 :accessor max-length)
    (horiz-dir :initform 0 :accessor horiz-dir)
-   (vert-dir :initform -1 :accessor vert-dir)
-   (color :initform sdl:*green* :initarg :color :accessor color)
+   (vert-dir :initform 1 :accessor vert-dir)
+   (speed :initform 0.01 :accessor speed)
+   (color :initform uid:*green* :initarg :color :accessor color)
    (body :initform nil :accessor body)
-   (crashed :initform nil :accessor crashed-p)))
+   (crashedp :initform nil :accessor crashedp)
+   (game :initarg :game :accessor game)))
 
-(defmethod crashed-p :around ((worm worm))
+(defmethod crashedp :around ((worm worm))
   (with-accessors ((x head-x)
                    (y head-y))
       worm
     (or (call-next-method)
         (<= x 0)
-        (>= x (1- *screen-width*))
+        (>= x (1- (uid:width (game worm))))
         (<= y 0)
-        (>= y (1- *screen-height*)))))
+        (>= y (1- (uid:height (game worm)))))))
 
-(defmethod move ((worm worm))
-  (with-accessors ((x head-x) (y head-y)) worm
-    (incf x (horiz-dir worm))
-    (incf y (vert-dir worm))
-    (when (member (cons x y) (body worm) :test #'equal)
-      (setf (crashed-p worm) t))
-    (setf (body worm) (append (body worm) (list (cons x y))))
-    (when (> (length (body worm))
-             (max-length worm))
-      (pop (body worm)))))
-
-(defmethod draw ((worm worm))
-  (loop
-     for (x . y) in (body worm)
-     do (sdl:draw-pixel-* x y :color (color worm))))
-
-(defmethod handle-key (key (worm worm))
+(defmethod uid:on-key-down ((worm worm) keycode keysym string)
+  (declare (ignore keycode string))
   (with-accessors ((hd horiz-dir)
                    (vd vert-dir))
       worm
-    (case key
-      (:sdl-key-p
-       (setf *paused*
-             (not *paused*)))
-      (:sdl-key-up
+    (case keysym
+      (:up
+       (unless (= vd -1)
+         (setf hd 0)
+         (setf vd 1)))
+      (:down
        (unless (= vd 1)
          (setf hd 0)
          (setf vd -1)))
-      (:sdl-key-down
-       (unless (= vd -1)
-        (setf hd 0)
-        (setf vd 1)))
-      (:sdl-key-left
+      (:left
        (unless (= hd 1)
-        (setf hd -1)
-        (setf vd 0)))
-      (:sdl-key-right
+         (setf hd -1)
+         (setf vd 0)))
+      (:right
        (unless (= hd -1)
-        (setf hd 1)
-        (setf vd 0))))))
+         (setf hd 1)
+         (setf vd 0))))))
+
+(defmethod uid:on-update ((worm worm) dt)
+  (flet ((point= (p1 p2) (and (= (uid:point-x p1)
+                                 (uid:point-x p2))
+                              (= (uid:point-y p1)
+                                 (uid:point-y p2)))))
+   (with-accessors ((x head-x) (y head-y)) worm
+     (unless (zerop dt)
+      (incf x (/ (* (horiz-dir worm) (speed worm)) dt))
+      (incf y (/ (* (vert-dir worm) (speed worm)) dt)))
+
+     ;; TODO - this won't work anymore, since x/y positions are in floats now. Derp.
+     (when (member (uid:make-point x y) (body worm) :test #'point=)
+       (setf (crashedp worm) t))
+
+     (setf (body worm) (append (body worm) (list (uid:make-point x y))))
+
+     (when (> (length (body worm))
+              (max-length worm))
+       (pop (body worm))))))
+
+(defmethod uid:on-draw ((worm worm))
+  (uid:with-color (color worm)
+    (mapc (lambda (point) (uid:draw-point point :size 6)) (body worm))))
 
 ;;; Edibles
 (defclass edible ()
-  ((x :initarg :x :initform (random *screen-width*) :accessor x-loc)
-   (y :initarg :y :initform (random *screen-height*) :accessor y-loc)
-   (size :initarg :size :initform 5 :accessor size)
-   (color :initarg :color :initform *obj-color* :accessor color)))
+  ((x :initarg :x :accessor x-loc)
+   (y :initarg :y :accessor y-loc)
+   (size :initarg :size :accessor size)
+   (color :initarg :color :accessor color))
+  (:default-initargs :size 5))
 
 (defclass food (edible)
-  ((color :initform sdl:*green*)
-   (bonus :initform 25 :accessor bonus)))
+  ((bonus :initform 25 :accessor bonus))
+  (:default-initargs :color uid:*green*))
 
 (defclass poison (edible)
-  ((color :initform sdl:*magenta*)
-   (penalty :initform 15 :accessor penalty)))
+  ((penalty :initform 15 :accessor penalty))
+  (:default-initargs :color uid:*magenta*))
 
-(defun make-random-edible ()
-  (let ((choice (random 2)))
-    (case choice
-      (0 (make-instance 'food))
-      (1 (make-instance 'poison)))))
-
-(defmethod draw ((edible edible))
+(defmethod uid:on-draw ((edible edible))
   (with-accessors ((x x-loc)
                    (y y-loc)
                    (size size)
                    (color color))
       edible
-    (sdl:draw-box-* x y size size :color color)))
+    (uid:draw-rectangle x y size size :color color)))
 
 (defmethod nom-nom ((worm worm) (food food))
   (incf (max-length worm) (bonus food)))
@@ -114,7 +110,7 @@
                 (penalty blagh)
                 (length (body worm)))))
 
-(defmethod collided-p ((worm worm) (edible edible))
+(defmethod collidedp ((worm worm) (edible edible))
   (with-accessors ((worm-x head-x)
                    (worm-y head-y))
       worm
@@ -127,57 +123,79 @@
                (< worm-y food-y)
                (> worm-y (+ food-y size)))))))
 
-(defun draw-score (score)
-  (draw-text (format nil "Score: ~a" score)
-             (- (/ *screen-width* 2) 25)
-             (+ (/ *screen-height* 2) 20)))
+;;;
+;;; Game
+;;;
+(defclass common-worm (uid:simple-game-engine)
+  ((pausedp :initform nil :accessor pausedp)
+   (obj-color :initform uid:*white* :accessor obj-color)
+   (worm :initarg :worm :accessor worm)
+   (food :initform nil :accessor food)
+   (font :initarg :font :accessor font)
+   (score :initform 0 :accessor score))
+  (:default-initargs :fps-limit 30
+    :width 400
+    :height 400
+    :font (make-instance 'uid:ftgl-font
+                         :filepath (merge-pathnames "example.ttf" *default-pathname-defaults*)
+                         :size 14)))
 
-(defvar *running* nil)
 (defun main ()
-  (setf *running* t
-        *paused*  nil)
-  (sdl:with-init (sdl:sdl-init-video)
-    (sdl:initialise-default-font)
-    (sdl:window *screen-width* *screen-height*
-                :title-caption "sdl stuff"
-                :icon-caption "sdl stuff")
-    (setf (sdl:frame-rate) 60)
-    (sdl:clear-display *bg-color*)
-    (let ((worm (make-instance 'worm))
-          (food (make-random-edible))
-          (score 0))
-     (sdl:with-events ()
-       (:quit-event () (prog1 t
-                         (setf *running* nil)
-                         (format t "~&Final score: ~a" score)))
-       (:key-down-event (:key key)
-                        (handle-key key worm))
-       (:idle ()
-              (sdl:clear-display *bg-color*)
-              (draw-text (if *paused*
-                             "[P] to UNPAUSE"
-                             "[P] to PAUSE")
-                         (- (/ *screen-width* 2)
-                            (if *paused* 50 40))
-                         (- (/ *screen-height* 2) 20))
-              (draw-text "OMG WURM"
-                         (- (/ *screen-width* 2) 25)
-                         (/ *screen-height* 2))
-              (draw-score score)
-              (unless *paused*
-                (move worm))
-              (draw worm)
-              (draw food)
-              (when (crashed-p worm)
-                (format t "Crashed!")
-                (setf *running* nil))
-              (when (collided-p worm food)
-                (incf score)
-                (nom-nom worm food)
-                (setf food (make-random-edible)))
-              (when (>= 0 (max-length worm))
-                (format t "Poisoned to death!")
-                (setf *running* nil))
-              (sdl:update-display)
-              (when (not *running*)
-                (sdl:push-quit-event)))))))
+  (uid:run (make-instance 'common-worm)))
+
+(defun draw-text (game text x y)
+  (uid:draw text :x x :y y :font (font game)))
+
+(defun draw-score (game)
+  (draw-text game (format nil "Score: ~a" (score game))
+             (- (/ (uid:width game) 2) 20)
+             (- (/ (uid:height game) 2) 40)))
+
+(defmethod uid:init ((game common-worm))
+  (setf (food game) (make-instance 'food
+                                   :x (random (uid:width game))
+                                   :y (random (uid:height game)))
+        (worm game) (make-instance 'worm :x 1 :y 1 :game game)))
+
+(defmethod uid:on-draw ((game common-worm))
+  (uid:clear game)
+  (uid:with-color uid:*white*
+    (draw-text game (if (pausedp game)
+                        "[P] to UNPAUSE"
+                        "[P] to PAUSE")
+               (- (/ (uid:width game) 2)
+                  (if (pausedp game) 48 38))
+               (- (/ (uid:height game) 2) 20))
+    (draw-text game "OMG WURM"
+               (- (/ (uid:width game) 2) 35)
+               (/ (uid:height game) 2))
+    (draw-text game (format nil "FPS: ~,1f" (uid:fps (uid:clock game)))
+               0 (- (uid:height game) 15))
+    (draw-score game))
+  (uid:on-draw (food game))
+  (uid:on-draw (worm game)))
+
+(defmethod uid:on-update ((game common-worm) dt)
+  (unless (pausedp game)
+    (uid:on-update (worm game) dt)
+    (when (crashedp (worm game))
+      (print "Crashed!")
+      (uid:close-window game))
+    (when (collidedp (worm game) (food game))
+      (incf (score game))
+      (nom-nom (worm game) (food game))
+      (setf (food game) (make-instance 'food
+                                       :x (random (uid:width game))
+                                       :y (random (uid:height game)))))
+    (when (>= 0 (max-length (worm game)))
+      (print "Poisoned to death!")
+      (uid:close-window game))))
+
+(defmethod uid:on-key-down ((game common-worm) keycode keysym string)
+  (when (eq :p keysym)
+    (setf (pausedp game)
+          (not (pausedp game))))
+  (when (eq :escape keysym)
+    (uid:close-window game))
+  (uid:on-key-down (worm game) keycode keysym string))
+
