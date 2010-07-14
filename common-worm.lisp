@@ -54,24 +54,30 @@
          (setf vd 0))))))
 
 (defmethod uid:on-update ((worm worm) dt)
-  (flet ((point= (p1 p2) (and (= (uid:point-x p1)
-                                 (uid:point-x p2))
-                              (= (uid:point-y p1)
-                                 (uid:point-y p2)))))
-   (with-accessors ((x head-x) (y head-y)) worm
-     (unless (zerop dt)
-      (incf x (/ (* (horiz-dir worm) (speed worm)) dt))
-      (incf y (/ (* (vert-dir worm) (speed worm)) dt)))
+  (flet ((point~= (p1 p2) (and (>= (abs (speed worm))
+                                   (- (uid:point-x p1)
+                                      (uid:point-x p2))
+                                   (- (abs (speed worm))))
+                               (>= (abs (speed worm))
+                                   (- (uid:point-y p1)
+                                      (uid:point-y p2))
+                                   (- (abs (speed worm)))))))
+    (with-accessors ((x head-x) (y head-y)) worm
+      (unless (zerop dt)
+        (incf x (/ (* (horiz-dir worm) (speed worm)) dt))
+        (incf y (/ (* (vert-dir worm) (speed worm)) dt)))
 
-     ;; TODO - this won't work anymore, since x/y positions are in floats now. Derp.
-     (when (member (uid:make-point x y) (body worm) :test #'point=)
-       (setf (crashedp worm) t))
+      ;; TODO - this won't work anymore, since x/y positions are in floats now. Derp.
+      (let ((new-point (uid:make-point x y)))
 
-     (setf (body worm) (append (body worm) (list (uid:make-point x y))))
+        (when (member new-point (body worm) :test #'point~=)
+          (setf (crashedp worm) t))
 
-     (when (> (length (body worm))
-              (max-length worm))
-       (pop (body worm))))))
+        (setf (body worm) (append (body worm) (list new-point))))
+
+      (when (> (length (body worm))
+               (max-length worm))
+        (pop (body worm))))))
 
 (defmethod uid:on-draw ((worm worm))
   (uid:with-color (color worm)
