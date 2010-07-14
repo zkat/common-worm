@@ -75,7 +75,12 @@
 
 (defmethod uid:on-draw ((worm worm))
   (uid:with-color (color worm)
-    (mapc (lambda (point) (uid:draw-point point :size 6)) (body worm))))
+    (gl:with-primitive :lines
+      (loop for (point next-point) on (body worm)
+         while next-point
+         do
+         (gl:vertex (uid:point-x point) (uid:point-y point))
+         (gl:vertex (uid:point-x next-point) (uid:point-y next-point))))))
 
 ;;; Edibles
 (defclass edible ()
